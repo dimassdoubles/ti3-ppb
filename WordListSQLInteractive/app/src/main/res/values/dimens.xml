@@ -1,0 +1,8 @@
+<resources>
+    <dimen name="fab_margin">16dp</dimen>
+    <dimen name="button_height">36dp</dimen>
+    <dimen name="small_padding">6dp</dimen>
+    <dimen name="divider_height">3dp</dimen>
+    <dimen name="big_padding">16dp</dimen>
+    <dimen name="button_height_48dp">48dp</dimen>
+</resources>

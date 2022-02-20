@@ -1,0 +1,194 @@
+package com.android.dimassdoubles.wordlistsqlwithcontentprovider;
+
+import android.content.ContentValues;
+import android.content.Context;
+import android.database.Cursor;
+import android.database.DatabaseUtils;
+import android.database.MatrixCursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
+import android.util.Log;
+
+public class WordListOpenHelper extends SQLiteOpenHelper {
+
+    private static final String TAG = WordListOpenHelper.class.getSimpleName();
+
+    // Has to be 1 first time or app will crash.
+    private static final int DATABASE_VERSION = 1;
+
+    SQLiteDatabase mWritableDB;
+    SQLiteDatabase mReadableDB;
+    ContentValues mValues = new ContentValues();
+
+    // Build the SQL query that creates the table.
+    private static final String WORD_LIST_TABLE_CREATE =
+            "CREATE TABLE " + Contract.WordList.WORD_LIST_TABLE + " (" +
+                    Contract.WordList.KEY_ID + " INTEGER PRIMARY KEY, " + // will auto-increment if no value passed
+                    Contract.WordList.KEY_WORD + " TEXT );";
+
+
+    public WordListOpenHelper(Context context) {
+        super(context, Contract.DATABASE_NAME, null, DATABASE_VERSION);
+    }
+
+    @Override
+    public void onCreate(SQLiteDatabase db) {
+        db.execSQL(WORD_LIST_TABLE_CREATE);
+        fillDatabaseWithData(db);
+    }
+
+    /**
+     * Adds the initial data set to the database.
+     * According to the docs, onCreate for the open helper does not run on the UI thread.
+     *
+     * @param db Database to fill with data since the member variables are not initialized yet.
+     */
+    public void fillDatabaseWithData(SQLiteDatabase db) {
+
+        String[] words = {"Android", "Adapter", "ListView", "AsyncTask", "Android Studio",
+                "SQLiteDatabase", "SQLOpenHelper", "Data model", "ViewHolder",
+                "Android Performance", "OnClickListener"};
+
+        // Create a container for the data.
+        ContentValues values = new ContentValues();
+
+        for (int i=0; i < words.length;i++) {
+            // Put column/value pairs into the container, overriding existing values.
+            values.put(Contract.WordList.KEY_WORD, words[i]);
+            db.insert(Contract.WordList.WORD_LIST_TABLE, null, values);
+        }
+    }
+
+    /**
+     * Called when a database needs to be upgraded. The most basic version of this method drops
+     * the tables, and then recreates them. All data is lost, which is why for a production app,
+     * you want to back up your data first. If this method fails, changes are rolled back.
+     *
+     * @param db
+     * @param oldVersion
+     * @param newVersion
+     */
+    @Override
+    public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        Log.w(WordListOpenHelper.class.getName(),
+                "Upgrading database from version " + oldVersion + " to "
+                        + newVersion + ", which will destroy all old data");
+        db.execSQL("DROP TABLE IF EXISTS " + Contract.WordList.WORD_LIST_TABLE);
+        onCreate(db);
+    }
+
+    /**
+     * Queries the database for an entry at a given position.
+     *
+     * @param position The Nth row in the table.
+     * @return a WordItem with the requested database entry.
+     */
+    public Cursor query(int position) {
+        String query;
+        if (position != Contract.ALL_ITEMS) {
+            position++; // Because database starts counting at 1.
+            query = "SELECT " + Contract.WordList.KEY_ID + "," + Contract.WordList.KEY_WORD + " FROM " + Contract.WordList.WORD_LIST_TABLE +
+                    " WHERE " + Contract.WordList.KEY_ID + "=" + position + ";";
+        } else {
+            query = "SELECT  * FROM " + Contract.WordList.WORD_LIST_TABLE + " ORDER BY " + Contract.WordList.KEY_WORD + " ASC ";
+        }
+
+        Cursor cursor = null;
+        try {
+            if (mReadableDB == null) {
+                mReadableDB = this.getReadableDatabase();
+            }
+            cursor = mReadableDB.rawQuery(query, null);
+        } catch (Exception e) {
+            Log.d(TAG, "EXCEPTION! " + e);
+        } finally {
+            return cursor;
+        }
+    }
+
+    /**
+     * Gets the number of rows in the word list table.
+     *
+     * @return The number of entries in WORD_LIST_TABLE.
+     */
+    public Cursor count() {
+        MatrixCursor cursor = new MatrixCursor(new String[]{Contract.CONTENT_PATH});
+        try {
+            if (mReadableDB == null) {
+                mReadableDB = getReadableDatabase();
+            }
+            // queryNumEntries returns a long, but we need to pass up an int.
+            // With the small number of entries, no worries about losing precision.
+            int count = (int) DatabaseUtils.queryNumEntries(mReadableDB, Contract.WordList.WORD_LIST_TABLE);
+            cursor.addRow(new Object[]{count});
+        } catch (Exception e) {
+            Log.d(TAG, "EXCEPTION " + e);
+        }
+        return cursor;
+    }
+
+    /**
+     * Adds a single word row/entry to the database.
+     *
+     * @param  values Container for key/value columns/values.
+     * @return The id of the inserted word.
+     */
+    public long insert(ContentValues values){
+        long added = 0;
+        try {
+            if (mWritableDB == null) {
+                mWritableDB = getWritableDatabase();
+            }
+            added = mWritableDB.insert(Contract.WordList.WORD_LIST_TABLE, null, values);
+        } catch (Exception e) {
+            Log.d(TAG, "EXCEPTION " + e);
+        }
+        return added;
+    }
+
+    /**
+     * Updates  word with the supplied id to the supplied value.
+     *
+     * @param id Id of the word to update.
+     * @param word The new value of the word.
+     * @return the number of rows affected.
+     */
+    public int update(int id, String word) {
+        int updated = 0;
+        try {
+            ContentValues values = new ContentValues();
+            values.put(Contract.WordList.KEY_WORD, word);
+            if (mWritableDB == null) {
+                mWritableDB = getWritableDatabase();
+            }
+            updated = mWritableDB.update(Contract.WordList.WORD_LIST_TABLE, //table to change
+                    values, // new values to insert
+                    Contract.WordList.KEY_ID + " = ?", // selection criteria for row (in this case, the _id column)
+                    new String[]{String.valueOf(id)}); //selection args; the actual value of the id
+
+        } catch (Exception e) {
+            Log.d (TAG, "EXCEPTION " + e);
+        }
+        return updated;
+    }
+
+    /**
+     * Deletes one entry identified by its id.
+     *
+     * @param id ID of the entry to delete.
+     * @return The number of rows deleted. Since we are deleting by id, this should be 0 or 1.
+     */
+    public int delete(int id) {
+        int deleted = 0;
+        try {
+            if (mWritableDB == null) {
+                mWritableDB = this.getWritableDatabase();
+            }
+            deleted = mWritableDB.delete(Contract.WordList.WORD_LIST_TABLE,
+                    Contract.WordList.KEY_ID + " =? ", new String[]{String.valueOf(id)});
+        } catch (Exception e) {
+            Log.d (TAG, "EXCEPTION " + e);
+        }
+        return deleted;
+    }
+}
